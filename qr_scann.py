@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import time
 
-# Camera intrinsic parameters (these would typically be determined via calibration)
+#regular camera_matrix , we do the calibration with the qr code size
 camera_matrix = np.array([[800, 0, 640],
                           [0, 800, 360],
                           [0, 0, 1]], dtype=np.float32)
@@ -16,7 +16,8 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 # Initialize the QR Code detector
 detector = cv2.QRCodeDetector()
 
-# Predefined QR code sizes in meters
+# Predefined QR code sizes in meters 
+# WARNING: DO NOT FORGET TO ADD TO THE BELLOW LIST YOUR QR CODE SIZE.
 QR_CODE_SIZES = [0.14, 0.07, 0.03]
 
 def order_points(pts):
@@ -58,7 +59,7 @@ while cap.isOpened():
         points = points[0]
         points = order_points(points)
 
-        # Draw the bounding box and center point
+        # Draw the box and center point of the qr code
         for i in range(len(points)):
             pt1 = (int(points[i][0]), int(points[i][1]))
             pt2 = (int(points[(i+1) % len(points)][0]), int(points[(i+1) % len(points)][1]))
@@ -74,6 +75,7 @@ while cap.isOpened():
         best_distance = None
         best_yaw = None
 
+        # Find the best size to use according to the registered size of QR code
         for size in QR_CODE_SIZES:
             obj_points = np.array([[0, 0, 0],
                                    [size, 0, 0],
