@@ -1,11 +1,6 @@
 import cv2
-import time
 import numpy as np
-
-# Known width of the QR code (in meters or any other consistent units)
-KNOWN_QR_CODE_WIDTH = 0.14  # Example: 14 cm
-
-
+import time
 
 # Camera intrinsic parameters (these would typically be determined via calibration)
 camera_matrix = np.array([[800, 0, 640],
@@ -21,9 +16,30 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 # Initialize the QR Code detector
 detector = cv2.QRCodeDetector()
 
+# Predefined QR code sizes in meters
+QR_CODE_SIZES = [0.14, 0.07, 0.03]
 
+def order_points(pts):
+    assert pts.shape[0] == 4, "Expected exactly 4 points for QR code edges detection."
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+    return rect
 
-
+def compute_distance(obj_points, img_points):
+    success, rvec, tvec = cv2.solvePnP(obj_points, img_points, camera_matrix, dist_coeffs)
+    if success:
+        distance = np.linalg.norm(tvec)
+        rmat, _ = cv2.Rodrigues(rvec)
+        yaw = np.degrees(np.arctan2(rmat[1, 0], rmat[0, 0]))
+        return distance, yaw
+    else:
+        print("Could not solve PnP")
+        return None, None
 
 while cap.isOpened():
     success, img = cap.read()
@@ -39,41 +55,40 @@ while cap.isOpened():
 
     if points is not None:
         print(f"QR code detected: {value}")
-        points = points[0]  # Extract points from the list
+        points = points[0]
+        points = order_points(points)
 
-        # Draw the bounding box
+        # Draw the bounding box and center point
         for i in range(len(points)):
             pt1 = (int(points[i][0]), int(points[i][1]))
             pt2 = (int(points[(i+1) % len(points)][0]), int(points[(i+1) % len(points)][1]))
             cv2.line(img, pt1, pt2, (0, 255, 0), 5)
+            
+            # Display 2D coordinates of the corners
+            cv2.putText(img, f'({pt1[0]}, {pt1[1]})', pt1, cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 2)
 
-        # Draw center point
         x_center = np.mean(points[:, 0])
         y_center = np.mean(points[:, 1])
         cv2.circle(img, (int(x_center), int(y_center)), 3, (0, 255, 0), 3)
-        
-        # Calculate the 3D position and yaw angle
-        x_coords = points[:, 0]
-        y_coords = points[:, 1]
-        obj_points = np.array([[0, 0, 0],
-                               [KNOWN_QR_CODE_WIDTH, 0, 0],
-                               [KNOWN_QR_CODE_WIDTH, KNOWN_QR_CODE_WIDTH, 0],
-                               [0, KNOWN_QR_CODE_WIDTH, 0]], dtype=np.float32)
-        
-        success, rvec, tvec = cv2.solvePnP(obj_points, points, camera_matrix, dist_coeffs)
-        if success:
-            distance = np.linalg.norm(tvec)
-            rmat, _ = cv2.Rodrigues(rvec)
-            yaw = np.degrees(np.arctan2(rmat[1, 0], rmat[0, 0]))
 
-            cv2.putText(img, f"Distance: {distance:.2f} m", (30, 120), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
-            cv2.putText(img, f"Yaw: {yaw:.2f} deg", (30, 170), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
-        else:
-            print("Could not solve PnP")
+        best_distance = None
+        best_yaw = None
 
-        # Draw corner points coordinates
-        for idx, (x, y) in enumerate(points):
-            cv2.putText(img, f"P{idx+1} ({x:.2f}, {y:.2f})", (int(x), int(y-10)), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 2)
+        for size in QR_CODE_SIZES:
+            obj_points = np.array([[0, 0, 0],
+                                   [size, 0, 0],
+                                   [size, size, 0],
+                                   [0, size, 0]], dtype=np.float32)
+            distance, yaw = compute_distance(obj_points, points)
+            if distance is not None:
+                if best_distance is None or distance < best_distance:
+                    best_distance = distance
+                    best_yaw = yaw
+        
+        if best_distance is not None:
+            cv2.putText(img, f"Distance: {best_distance:.2f} m", (30, 120), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
+            cv2.putText(img, f"Yaw: {best_yaw:.2f} deg", (30, 170), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
+
     else:
         print("No QR code detected")
 
