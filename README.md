@@ -54,10 +54,10 @@ To ensure precise distance calculations, you may need to modify the size and typ
 
 ### Editing the ArUco Dictionary and Tag Size
 
-1. **Change ArUco Dictionary**: Open the appropriate script file (`aruco_scanner.py` or `aruco_scanner_live.py`) and locate the line where the ArUco dictionary is defined. Modify it to use a different dictionary if needed.
+1. **Change ArUco Dictionary**: Open the appropriate script file (`aruco_scanner.py` or `aruco_scanner_live.py`) and modify in the main function the `aruco_type` variable. Modify it to use a different dictionary if needed.
     ```python
-    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_100)  # Default Dictionary
-    # Replace with another dictionary, e.g., cv2.aruco.DICT_6X6_250
+    aruco_type = "DICT_4X4_100"
+    # Replace with another dictionary, e.g., "DICT_6X6_250"
     ```
 
 2. **Set the ArUco Tag Size**: Define the size of the ArUco tag in meters (or any consistent unit) for distance calculation:
