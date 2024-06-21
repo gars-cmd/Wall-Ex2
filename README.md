@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://learnopencv.com/wp-content/uploads/2020/03/aruco-markers-examples.jpg" alt="Logo" width="450" height="300" align="right">
+</p>
+
 # ArUco Scanner Project
 
 Welcome to the ArUco Scanner Project! This repository contains scripts to detect ArUco markers in video files and real-time camera feeds. The project uses OpenCV and NumPy for marker detection and distance calculation.
@@ -39,6 +43,9 @@ To detect ArUco markers in a video file, use the `aruco_scanner.py` script with 
 python aruco_scanner.py input.mp4
 ```
 Replace `input.mp4` with the path to your video file.
+![image](https://github.com/gars-cmd/Wall-Ex2/assets/75199660/ddc980f5-39af-4006-8ca2-56034cd82123)
+
+
 
 ### Running ArUco Scanner Live
 
