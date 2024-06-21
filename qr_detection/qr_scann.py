@@ -1,109 +1,156 @@
+import csv
+import os
+
 import cv2
 import numpy as np
-import time
+import argparse
 
-#regular camera_matrix , we do the calibration with the qr code size
-camera_matrix = np.array([[800, 0, 640],
-                          [0, 800, 360],
-                          [0, 0, 1]], dtype=np.float32)
-dist_coeffs = np.zeros((4, 1))  # Assuming no lens distortion for simplicity
+# define names of each possible ArUco tag OpenCV supports
+ARUCO_DICT = {
+    "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+    "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
+    "DICT_4X4_250": cv2.aruco.DICT_4X4_250,
+    "DICT_4X4_1000": cv2.aruco.DICT_4X4_1000,
+    "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
+    "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
+    "DICT_5X5_250": cv2.aruco.DICT_5X5_250,
+    "DICT_5X5_1000": cv2.aruco.DICT_5X5_1000,
+    "DICT_6X6_50": cv2.aruco.DICT_6X6_50,
+    "DICT_6X6_100": cv2.aruco.DICT_6X6_100,
+    "DICT_6X6_250": cv2.aruco.DICT_6X6_250,
+    "DICT_6X6_1000": cv2.aruco.DICT_6X6_1000,
+    "DICT_7X7_50": cv2.aruco.DICT_7X7_50,
+    "DICT_7X7_100": cv2.aruco.DICT_7X7_100,
+    "DICT_7X7_250": cv2.aruco.DICT_7X7_250,
+    "DICT_7X7_1000": cv2.aruco.DICT_7X7_1000,
+    "DICT_ARUCO_ORIGINAL": cv2.aruco.DICT_ARUCO_ORIGINAL,
+    "DICT_APRILTAG_16h5": cv2.aruco.DICT_APRILTAG_16h5,
+    "DICT_APRILTAG_25h9": cv2.aruco.DICT_APRILTAG_25h9,
+    "DICT_APRILTAG_36h10": cv2.aruco.DICT_APRILTAG_36h10,
+    "DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
+}
 
-# Initialize the video capture with the first camera
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-# Initialize the QR Code detector
-detector = cv2.QRCodeDetector()
+def aruco_display(corners, ids, rejected, image, camera_matrix, dist_coeffs, marker_length):
+    data_list = None
+    if len(corners) > 0:
+        ids = ids.flatten()
+        for (markerCorner, markerID) in zip(corners, ids):
+            corners = markerCorner.reshape((4, 2))
+            (topLeft, topRight, bottomRight, bottomLeft) = corners
 
-# Predefined QR code sizes in meters 
-# WARNING: DO NOT FORGET TO ADD TO THE BELLOW LIST YOUR QR CODE SIZE.
-QR_CODE_SIZES = [0.14, 0.07, 0.03]
+            topRight = (int(topRight[0]), int(topRight[1]))
+            bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
+            bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
+            topLeft = (int(topLeft[0]), int(topLeft[1]))
 
-def order_points(pts):
-    assert pts.shape[0] == 4, "Expected exactly 4 points for QR code edges detection."
-    rect = np.zeros((4, 2), dtype="float32")
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
-    return rect
+            cv2.line(image, topLeft, topRight, (0, 255, 0), 2)
+            cv2.line(image, topRight, bottomRight, (0, 255, 0), 2)
+            cv2.line(image, bottomRight, bottomLeft, (0, 255, 0), 2)
+            cv2.line(image, bottomLeft, topLeft, (0, 255, 0), 2)
 
-def compute_distance(obj_points, img_points):
-    success, rvec, tvec = cv2.solvePnP(obj_points, img_points, camera_matrix, dist_coeffs)
-    if success:
-        distance = np.linalg.norm(tvec)
-        rmat, _ = cv2.Rodrigues(rvec)
-        yaw = np.degrees(np.arctan2(rmat[1, 0], rmat[0, 0]))
-        return distance, yaw
-    else:
-        print("Could not solve PnP")
-        return None, None
+            cX = int((topLeft[0] + bottomRight[0]) / 2.0)
+            cY = int((topLeft[1] + bottomRight[1]) / 2.0)
+            cv2.circle(image, (cX, cY), 4, (0, 0, 255), -1)
 
-while cap.isOpened():
-    success, img = cap.read()
+            cv2.putText(image, str(markerID), (topLeft[0], topLeft[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    if not success:
-        print("Failed to read from camera")
-        break
+            # Print the corner coordinates
+            data_list = {}
+            print(f"ArUco marker ID: {markerID}")
+            data_list["ID"] = markerID
+            print(f"\tTop Left: {topLeft}")
+            data_list["topLeft"] = topLeft
+            print(f"\tTop Right: {topRight}")
+            data_list["topRight"] = topRight
+            print(f"\tBottom Right: {bottomRight}")
+            data_list["bottomRight"] = bottomRight
+            print(f"\tBottom Left: {bottomLeft}")
+            data_list["bottomLeft"] = bottomLeft
 
-    start = time.perf_counter()
+            # Estimate pose and print 3D information
+            rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(markerCorner, marker_length, camera_matrix, dist_coeffs)
+            # Distance from the camera to the marker
+            distance = np.linalg.norm(tvec)
+            # Convert rotation vector to rotation matrix
+            R, _ = cv2.Rodrigues(rvec)
+            # Calculate yaw angle (rotation around y-axis)
+            yaw = np.arctan2(R[1, 0], R[0, 0])
+            print(f"\tDistance: {distance:.2f} meters")
+            data_list["distance"] = distance
+            print(f"\tYaw angle: {np.degrees(yaw):.2f} degrees")
+            data_list["yaw"] = np.degrees(yaw)
 
-    # Detect and decode the QR code
-    value, points, _ = detector.detectAndDecode(img)
+    if data_list:
+        return image, data_list
+    return image, None  # Ensure the image is always returned
 
-    if points is not None:
-        print(f"QR code detected: {value}")
-        points = points[0]
-        points = order_points(points)
 
-        # Draw the box and center point of the qr code
-        for i in range(len(points)):
-            pt1 = (int(points[i][0]), int(points[i][1]))
-            pt2 = (int(points[(i+1) % len(points)][0]), int(points[(i+1) % len(points)][1]))
-            cv2.line(img, pt1, pt2, (0, 255, 0), 5)
-            
-            # Display 2D coordinates of the corners
-            cv2.putText(img, f'({pt1[0]}, {pt1[1]})', pt1, cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 2)
+def main(camera_index):
+    # Camera parameters (replace these with actual camera parameters)
+    camera_matrix = np.array([[800, 0, 640], [0, 800, 360], [0, 0, 1]])
+    dist_coeffs = np.zeros((5, 1))  # Assuming no lens distortion
+    # WARNING: DO NOT FORGET TO UPDATE THE SIZE OF THE MARKER LENGTH TO MAKE THE DISTANCE CALCULATION REAL
+    marker_length = 0.015  # Marker length in meters
 
-        x_center = np.mean(points[:, 0])
-        y_center = np.mean(points[:, 1])
-        cv2.circle(img, (int(x_center), int(y_center)), 3, (0, 255, 0), 3)
+    aruco_type = "DICT_4X4_100"
+    aruco_Dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT[aruco_type])
+    arucoParams = cv2.aruco.DetectorParameters()
 
-        best_distance = None
-        best_yaw = None
+    cap = cv2.VideoCapture(camera_index)
+    if not cap.isOpened():
+        print("Error opening video capture")
+        return
 
-        # Find the best size to use according to the registered size of QR code
-        for size in QR_CODE_SIZES:
-            obj_points = np.array([[0, 0, 0],
-                                   [size, 0, 0],
-                                   [size, size, 0],
-                                   [0, size, 0]], dtype=np.float32)
-            distance, yaw = compute_distance(obj_points, points)
-            if distance is not None:
-                if best_distance is None or distance < best_distance:
-                    best_distance = distance
-                    best_yaw = yaw
-        
-        if best_distance is not None:
-            cv2.putText(img, f"Distance: {best_distance:.2f} m", (30, 120), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
-            cv2.putText(img, f"Yaw: {best_yaw:.2f} deg", (30, 170), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    else:
-        print("No QR code detected")
+    while cap.isOpened():
+        ret, img = cap.read()
+        if not ret:
+            break
 
-    end = time.perf_counter()
-    total_time = end - start
-    fps = 1 / total_time if total_time > 0 else 0
+        h, w, _ = img.shape
 
-    cv2.putText(img, f'FPS: {int(fps)}', (30, 70), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
-    cv2.imshow('img', img)
+        width = 1000
+        height = int(width * (h / w))
+        img = cv2.resize(img, (width, height), interpolation=cv2.INTER_CUBIC)
 
-    if cv2.waitKey(1) & 0xFF == 27:
-        break
+        corners, ids, rejected = cv2.aruco.detectMarkers(img, aruco_Dict, parameters=arucoParams)
+        detected_markers, data_dict = aruco_display(corners, ids, rejected, img, camera_matrix, dist_coeffs,
+                                                    marker_length)
+        if data_dict:
+            append_dict_to_csv('output.csv', data_dict)
 
-cap.release()
-cv2.destroyAllWindows()
+        cv2.imshow("Live Video", detected_markers)
 
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            break
+
+    cv2.destroyAllWindows()
+    cap.release()
+
+
+def append_dict_to_csv(file_path, data_dict):
+    file_exists = os.path.isfile(file_path)
+
+    # Open the file in append mode
+    with open(file_path, 'a', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=data_dict.keys())
+
+        # If the file does not exist, write the header
+        if not file_exists:
+            writer.writeheader()
+
+        # Write the dictionary as a row in the CSV file
+        writer.writerow(data_dict)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="ArUco Marker Detection from Live Camera")
+    parser.add_argument("camera_index", type=int, help="Index of the camera")
+    args = parser.parse_args()
+
+    main(args.camera_index)
