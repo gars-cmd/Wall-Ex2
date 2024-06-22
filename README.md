@@ -32,6 +32,8 @@ To run the project, you'll need Python, as well as the most recent versions of O
 2. Install the required dependencies:
     ```sh
     pip install opencv-python numpy
+    pip install opencv-python==4.6.0.66
+    python3 -m pip install opencv-contrib-python
     ```
 
 ## Usage
