@@ -150,5 +150,5 @@ def append_dict_to_csv(file_path, data_dict):
 
 
 if __name__ == "__main__":
-    input_video = r"C:\Users\User\Desktop\לירון\AutoRobots\Ex2PartA\Wall-Ex2-master\Wall-Ex2-master\aruco_detection\Mp4Tests\ChallengeB.mp4"
+    input_video = r"C:\Users\User\Desktop\לירון\AutoRobots\Ex2PartAandB\Wall-Ex2\aruco_detection\Mp4Tests\ChallengeB.mp4"
     main(input_video)
