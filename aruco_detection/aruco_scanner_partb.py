@@ -1,45 +1,13 @@
 import cv2
-import numpy as np
+import pandas as pd
 import os
 import csv
+import ast
 
 # Dictionary to store custom QR IDs
 qr_id_map = {}
 next_id = 0
 
-def qr_display(corners, ids, rejected, image):
-    if len(corners) > 0:
-        ids = ids.flatten()
-        for (markerCorner, markerID) in zip(corners, ids):
-            corners = markerCorner.reshape((4, 2))
-            (topLeft, topRight, bottomRight, bottomLeft) = corners
-
-            topRight = (int(topRight[0]), int(topRight[1]))
-            bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
-            bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
-            topLeft = (int(topLeft[0]), int(topLeft[1]))
-
-            cv2.line(image, topLeft, topRight, (0, 255, 0), 2)
-            cv2.line(image, topRight, bottomRight, (0, 255, 0), 2)
-            cv2.line(image, bottomRight, bottomLeft, (0, 255, 0), 2)
-            cv2.line(image, bottomLeft, topLeft, (0, 255, 0), 2)
-
-            cX = int((topLeft[0] + bottomRight[0]) / 2.0)
-            cY = int((topLeft[1] + bottomRight[1]) / 2.0)
-            cv2.circle(image, (cX, cY), 4, (0, 0, 255), -1)
-
-            cv2.putText(image, str(markerID), (topLeft[0], topLeft[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            # Print the corner coordinates
-            print(f"QR Code ID: {markerID}")
-            print(f"\tTop Left: {topLeft}")
-            print(f"\tTop Right: {topRight}")
-            print(f"\tBottom Right: {bottomRight}")
-            print(f"\tBottom Left: {bottomLeft}")
-
-            # Save the corners if you want to use them for calculations
-            return (topLeft, topRight, bottomRight, bottomLeft)
 
 def save_frame_info(frame_id, corners, ids):
     global next_id
@@ -57,6 +25,7 @@ def save_frame_info(frame_id, corners, ids):
 
     file_path = 'saved_frame_info.csv'
     append_dict_to_csv(file_path, data_list)
+
 
 def calculate_movements(saved_data, current_data):
     movements = []
@@ -81,29 +50,35 @@ def calculate_movements(saved_data, current_data):
 
     return movements
 
+
 def append_dict_to_csv(file_path, data_dict):
-    file_exists = os.path.isfile(file_path)
+    try:
+        file_exists = os.path.isfile(file_path)
 
-    with open(file_path, 'a', newline='') as csvfile:
-        fieldnames = ['FrameID'] + [f"Marker_{i}" for i in range(0, len(data_dict) - 1)]
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        with open(file_path, 'a', newline='') as csvfile:
+            fieldnames = ['FrameID'] + [f"Marker_{i}" for i in range(0, len(data_dict) - 1)]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-        if not file_exists:
-            writer.writeheader()
+            if not file_exists:
+                writer.writeheader()
 
-        writer.writerow(data_dict)
+            writer.writerow(data_dict)
+    except:
+        pass
 
-def main():
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+
+def main(old_data, original_width, original_height):
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
     aruco_params = cv2.aruco.DetectorParameters()
 
     cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, original_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, original_height)
     if not cap.isOpened():
         print("Error opening video capture")
         return
 
     saved_frame_corners = None
-    saved_frame_id = None
 
     while cap.isOpened():
         ret, img = cap.read()
@@ -114,11 +89,25 @@ def main():
 
         if len(corners) > 0:
             cv2.aruco.drawDetectedMarkers(img, corners, ids, (0, 255, 0))
+            if ids[0][0] in old_data:
+                center_point = calculate_center_point(str(tuple(float(x) for x in corners[0][0][0])),
+                                                      str(tuple(float(x) for x in corners[0][0][1])),
+                                                      str(tuple(float(x) for x in corners[0][0][2])),
+                                                      str(tuple(float(x) for x in corners[0][0][3])))
+                print("center", center_point)
+                print(old_data[ids[0][0]])
+                print(f"Detected ID: {ids[0][0]}")
 
+                cv2.arrowedLine(img, (int(old_data[ids[0][0]][0]), int(old_data[ids[0][0]][1])), (int(center_point[0]), int(center_point[1])), (0, 255, 0), 3,
+                                tipLength=0.05)
+            else:
+                print("This aruco is new")
+                cv2.imshow('Live Video', img)
+                continue
         cv2.imshow('Live Video', img)
 
         key = cv2.waitKey(1) & 0xFF
-        if key == ord(' '):
+        if ids is not None:
             saved_frame_id = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
             saved_frame_corners = corners
             save_frame_info(saved_frame_id, saved_frame_corners, ids)
@@ -136,5 +125,52 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
 
+
+def calculate_center_point(corner1, corner2, corner3, corner4):
+    # Parse the corner points from string to tuples
+    corner1 = ast.literal_eval(corner1)
+    corner2 = ast.literal_eval(corner2)
+    corner3 = ast.literal_eval(corner3)
+    corner4 = ast.literal_eval(corner4)
+
+    # Calculate the center point
+    center_x = (corner1[0] + corner2[0] + corner3[0] + corner4[0]) / 4
+    center_y = (corner1[1] + corner2[1] + corner3[1] + corner4[1]) / 4
+    return (center_x, center_y)
+
+
+def csv_to_center_points(csv_file_path):
+    with open(csv_file_path, mode='r', newline='') as file:
+        reader = csv.DictReader(file)
+        list_of_dicts = []
+
+        for row in reader:
+            center_point = calculate_center_point(row['topLeft'], row['topRight'], row['bottomRight'],
+                                                  row['bottomLeft'])
+            row['centerPoint'] = center_point
+            list_of_dicts.append(row)
+
+    return list_of_dicts
+
+
 if __name__ == "__main__":
-    main()
+    cap = cv2.VideoCapture('test_nir_and_gal.mp4')
+    # Get the original width and height of the video
+    original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # Example usage
+    df = pd.read_csv('output.csv')
+
+    # Drop duplicates based on 'ID', keeping the first occurrence
+    df_unique = df.drop_duplicates(subset=['ID'], keep='first')
+
+    # Save the unique rows back to a new CSV file
+    df_unique.to_csv('unique_data.csv', index=False)
+    csv_file_path = 'unique_data.csv'  # Replace with your CSV file path
+    data_with_centers = csv_to_center_points(csv_file_path)
+    dict_centers = {}
+    for row in data_with_centers:
+        print(row['ID'], row['centerPoint'])
+        dict_centers[int(row['ID'])] = row['centerPoint']
+
+    main(dict_centers, original_width, original_height)
