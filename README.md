@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <p align="center">
   <img src="https://learnopencv.com/wp-content/uploads/2020/03/aruco-markers-examples.jpg" alt="Logo" width="450" height="300" align="right">
 </p>
