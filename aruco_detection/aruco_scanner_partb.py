@@ -98,7 +98,7 @@ def main(old_data, original_width, original_height):
                 print(old_data[ids[0][0]])
                 print(f"Detected ID: {ids[0][0]}")
 
-                cv2.arrowedLine(img, (int(old_data[ids[0][0]][0]), int(old_data[ids[0][0]][1])), (int(center_point[0]), int(center_point[1])), (0, 255, 0), 3,
+                cv2.arrowedLine(img, (int(center_point[0]), int(center_point[1])),  (int(old_data[ids[0][0]][0]), int(old_data[ids[0][0]][1])),(0, 255, 0), 3,
                                 tipLength=0.05)
             else:
                 print("This aruco is new")
@@ -144,9 +144,11 @@ def csv_to_center_points(csv_file_path):
         reader = csv.DictReader(file)
         list_of_dicts = []
 
+
         for row in reader:
-            center_point = calculate_center_point(row['topLeft'], row['topRight'], row['bottomRight'],
-                                                  row['bottomLeft'])
+            center_point = calculate_center_point((str(eval(row['QR 2D'])[0])),(str(eval(row['QR 2D'])[1])), (str(eval(row['QR 2D'])[2])),
+                                                  (str(eval(row['QR 2D'])[3])))
+            row['dis'] = row['QR 3D: dis']
             row['centerPoint'] = center_point
             list_of_dicts.append(row)
 
@@ -154,12 +156,12 @@ def csv_to_center_points(csv_file_path):
 
 
 if __name__ == "__main__":
-    cap = cv2.VideoCapture('test_nir_and_gal.mp4')
+    cap = cv2.VideoCapture(fr'Mp4Tests\ChallengeB.mp4')
     # Get the original width and height of the video
     original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     # Example usage
-    df = pd.read_csv('output.csv')
+    df = pd.read_csv(fr'PartA\output_scanner_CSV.csv')
 
     # Drop duplicates based on 'ID', keeping the first occurrence
     df_unique = df.drop_duplicates(subset=['ID'], keep='first')
