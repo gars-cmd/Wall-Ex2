@@ -5,11 +5,14 @@ import os
 import csv
 import ast
 
-from aruco_detection import aruco_scanner_of_video
+import aruco_scanner_of_video
 
 # Dictionary to store custom QR IDs
 qr_id_map = {}
 next_id = 0
+
+#error treshold for the yaw angle
+YAW_TRESHOLD = 0.5
 
 
 def save_frame_info(frame_id, corners, ids):
@@ -54,6 +57,17 @@ def calculate_movements(saved_data, current_data):
     return movements
 
 
+def calculate_yaw_correction(old_yaw, current_yaw, treshold=YAW_TRESHOLD):
+    delta = current_yaw - old_yaw
+    if abs(delta) > treshold:
+        if delta > 0:
+            return "Yaw correction : Turn right"
+        else:
+            return "Yaw correction : Turn left"
+    else:
+        return "Yaw correction : Yaw angle correct"
+
+
 def append_dict_to_csv(file_path, data_dict):
     try:
         file_exists = os.path.isfile(file_path)
@@ -77,7 +91,7 @@ def main(old_data, original_width, original_height):
     dist_coeffs = np.zeros((5, 1))  # Assuming no lens distortion
     marker_length = 0.14  # in meter
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(2)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, original_width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, original_height)
     if not cap.isOpened():
@@ -112,14 +126,19 @@ def main(old_data, original_width, original_height):
                     old_distance = float(old_data[ids[0][0]][1])
                     delta = new_distance - old_distance
                     if delta > 0.2:
-                        text = f"get closer"
+                        text = f"Distance correction : get closer"
 
                     elif delta < -0.2:
-                        text = f"step back"
+                        text = f"Distance correction : step back"
                     else:
-                        text = "you're good"
+                        text = "Distance correction : you're good"
                     cv2.putText(img, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                 (0, 255, 0), 2)
+
+                    new_yaw = data_dict['QR 3D: yaw']
+                    old_yaw = float(old_data[ids[0][0]][2])
+                    yaw_correction = calculate_yaw_correction(old_yaw, new_yaw)
+                    cv2.putText(img, yaw_correction, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             else:
                 cv2.imshow('Live Video', img)
                 continue
@@ -162,6 +181,7 @@ def csv_to_center_points(csv_file_path):
                                                   (str(eval(row['QR 2D'])[2])),
                                                   (str(eval(row['QR 2D'])[3])))
             row['dis'] = row['QR 3D: dis']
+            row['yaw'] = row['QR 3D: yaw']
             row['centerPoint'] = center_point
             list_of_dicts.append(row)
 
@@ -185,5 +205,5 @@ if __name__ == "__main__":
     data_with_centers = csv_to_center_points(csv_file_path)
     dict_centers = {}
     for row in data_with_centers:
-        dict_centers[int(row['ID'])] = [row['centerPoint'], row['QR 3D: dis']]
+        dict_centers[int(row['ID'])] = [row['centerPoint'], row['QR 3D: dis'], row['yaw']]
     main(dict_centers, original_width, original_height)

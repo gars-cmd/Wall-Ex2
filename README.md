@@ -42,9 +42,10 @@ To run the project, you'll need Python, as well as the most recent versions of O
 
 To detect ArUco markers in a video file, use the `aruco_scanner.py` script with the following command:
 ```sh
-python aruco_scanner.py input.mp4
+cd aruco_detection
+python aruco_scanner_of_video.py input.mp4
 ```
-Replace `input.mp4` with the path to your video file.
+Replace `input.mp4` with the path to your video file. This file will output a csv file with the coordinate of the camera when an aruco was detected for each aruco ID's.
 ![image](https://github.com/gars-cmd/Wall-Ex2/assets/75199660/ddc980f5-39af-4006-8ca2-56034cd82123)
 
 
@@ -76,4 +77,30 @@ To ensure precise distance calculations, you may need to modify the size and typ
     ```
 
 By adjusting these parameters, you can fine-tune the accuracy of the marker detection system.
+
+
+# Aruco Scanner Corrector
+
+About the file `aruco_scanner_partb.py` : This Python script processes video input to detect Aruco markers and provides real-time feedback to adjust the camera's position and orientation to match the reference coordinates stored in a CSV file. It also includes functionality to choose the camera to use and incorporates error thresholds for yaw angle correction. 
+```sh
+python aruco_scanner_partb.py
+```
+## Features
+
+- Detects Aruco markers in a live video feed.
+- Saves frame information, including marker IDs and coordinates, to a CSV file.
+- Compares the current marker positions and orientations with saved reference data.
+- Provides real-time movement instructions to adjust the camera's position (left, right, up, down) and distance (closer, step back).
+- Provides real-time orientation instructions to adjust the camera's yaw angle (turn left, turn right).
+- Includes an error threshold for yaw angle correction to avoid constant corrections.
+- Allows the user to select the camera index for the video input (like explained in the precvious points).
+- Adjust the `YAW_THRESHOLD` value in the script to set an appropriate error threshold for yaw angle correction based on your requirements (to do so find at the top of the file the variable YAW_THRESHOLD and set the value wanted ).
+
+## Results
+<a href="https://imgbb.com/"><img src="https://i.ibb.co/JCzDH9P/matala2-3.png" alt="matala2-3" border="0"></a>
+<a href="https://imgbb.com/"><img src="https://i.ibb.co/8zRyJhf/matala2-2.jpg" alt="matala2-2" border="0"></a>
+<a href="https://imgbb.com/"><img src="https://i.ibb.co/3dkXyTC/matala2-1.jpg" alt="matala2-1" border="0"></a>
+
+
+
 
